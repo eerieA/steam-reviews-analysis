@@ -1,3 +1,0 @@
-# Steam reviews analysis
-
-TBD

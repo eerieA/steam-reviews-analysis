@@ -1,0 +1,3 @@
+# Ignore downloaded json file in some subfolders
+# Add more subfolders when necessary
+downloaded/*.json
