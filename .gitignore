@@ -1,3 +1,7 @@
 # Ignore downloaded json file in some subfolders
 # Add more subfolders when necessary
 downloaded/*.json
+
+# Ignore transformer models subfolders, but not files directly under ./models
+# Add more when necessary
+models/**/
