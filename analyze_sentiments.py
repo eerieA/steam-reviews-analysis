@@ -1,6 +1,25 @@
+import argparse
+import os
+
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+
+# Argument parsing
+parser = argparse.ArgumentParser(description="Analyze Steam review sentiments")
+parser.add_argument(
+    "--filename",
+    type=str,
+    required=True,
+    help="Path to the downloaded reviews JSON file",
+)
+args = parser.parse_args()
+filename = args.filename
+
+# Check if the file exists
+if not os.path.isfile(filename):
+    print(f"Error: File not found → {filename}")
+    exit(1)
 
 # Try to detect a GPU; fall back to CPU
 try:
@@ -17,7 +36,6 @@ except ImportError:
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 
 # Config constants
-filename = "./downloaded/2954460_eng.json"
 local_path = "./models/cirimus-modernbert-base-go-emo"
 batch_size = 16
 top_k_labels = 5
