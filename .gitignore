@@ -5,3 +5,7 @@ downloaded/*.json
 # Ignore transformer models subfolders, but not files directly under ./models
 # Add more when necessary
 models/**/
+
+# Ignore auxiliary data required by packages, like nltk's stopwords
+# Add more when necessary
+nltk_data/
