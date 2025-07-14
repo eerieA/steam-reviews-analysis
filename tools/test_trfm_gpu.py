@@ -25,4 +25,4 @@ classifier = pipeline(
 _ = classifier(["Warm-up sentence!"] * 16, batch_size=16)  # This primes CUDA, compiles kernels, etc.
 
 # Test
-print(classifier("3 days left to launch for EDENS ZERO the game! 🥳 Take off to the stars, and adventure! "))
+print(classifier("Gotta love a hidden object game with cats... unless you can't stand cats--which I understand. I do love them, but I also realize that they are indeed direct descendants of Satan."))
