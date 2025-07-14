@@ -90,13 +90,24 @@ class SteamReviewScraper:
             list: A list of review dictionaries.
         """
         all_reviews = []
+        seen_ids = set()
         cursor = "*"
         query_count = 0
+        seen_cursors = set()
         total_expected_reviews = None
+        consecutive_no_new_reviews = 0  # Track consecutive pages with no new reviews
+        max_consecutive_no_new = 2  # Stop after 2 consecutive pages with no new reviews
 
         print(f"Starting review scrape for App ID: {self.app_id}")
 
         while True:
+            if cursor in seen_cursors:
+                print(
+                    "Cursor already used. Stopping pagination to avoid duplicate request."
+                )
+                break
+            seen_cursors.add(cursor)
+
             if query_count > 0 and query_count % RATE_LIMIT_PER_MINUTE == 0:
                 print(
                     f"Rate limit hit ({query_count} requests). Cooling down for {COOLDOWN_SECONDS} seconds..."
@@ -115,25 +126,70 @@ class SteamReviewScraper:
                 print("No more reviews found. Scrape complete.")
                 break
 
-            all_reviews.extend(reviews)
-            print(f"  > Fetched {len(reviews)} reviews on this page.")
+            deduped = []
+            dup_count = 0
+            for review in reviews:
+                rec_id = review.get("recommendationid")
+                if rec_id in seen_ids:
+                    dup_count += 1
+                    continue
+                seen_ids.add(rec_id)
+                deduped.append(review)
+
+            all_reviews.extend(deduped)
+
+            print(
+                f"  > Fetched {len(reviews)} reviews on this page ({dup_count} duplicates skipped)."
+            )
+
+            # Track consecutive pages with no new reviews
+            if len(deduped) == 0:
+                consecutive_no_new_reviews += 1
+                print(
+                    f"  > No new reviews on this page ({consecutive_no_new_reviews}/{max_consecutive_no_new} consecutive)"
+                )
+                if consecutive_no_new_reviews >= max_consecutive_no_new:
+                    print(
+                        f"  > Stopping after {max_consecutive_no_new} consecutive pages with no new reviews."
+                    )
+                    break
+            else:
+                consecutive_no_new_reviews = 0  # Reset counter
 
             if total_expected_reviews is None and "query_summary" in data:
                 total_expected_reviews = data["query_summary"].get("total_reviews", 0)
                 print(f"Discovered a total of {total_expected_reviews} reviews.")
 
             print(
-                f"  > Downloaded {len(all_reviews)} / {total_expected_reviews or '?'} reviews..."
+                f"  > Downloaded {len(all_reviews)} / {total_expected_reviews or '?'} unique reviews..."
             )
 
-            next_cursor = data.get("cursor")
-            if not next_cursor or next_cursor == cursor:
-                print("No new cursor returned. Assuming all reviews have been fetched.")
+            # Early exit if we've reached the expected total
+            if total_expected_reviews and len(all_reviews) >= total_expected_reviews:
+                print("  > Reached expected total number of reviews. Stopping.")
                 break
 
+            # Check for high duplicate rate (>90%) as another stopping condition
+            if len(reviews) > 0 and (dup_count / len(reviews)) > 0.9:
+                print(
+                    f"  > High duplicate rate ({dup_count}/{len(reviews)} = {dup_count / len(reviews) * 100:.1f}%). Likely reached end of unique reviews."
+                )
+                # Don't break immediately, let the consecutive_no_new_reviews logic handle it
+
+            next_cursor = data.get("cursor")
+            if not next_cursor:
+                print("No new cursor returned. Assuming all reviews have been fetched.")
+                break
+            if next_cursor in seen_cursors:
+                print(
+                    "Next cursor already seen. Ending pagination early to avoid duplicate fetch."
+                )
+                break
             cursor = next_cursor
 
-        print(f"\nScraping finished. Total reviews downloaded: {len(all_reviews)}")
+        print(
+            f"\nScraping finished. Total unique reviews downloaded: {len(all_reviews)}"
+        )
         return all_reviews
 
 
