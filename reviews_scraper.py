@@ -42,7 +42,7 @@ class SteamReviewScraper:
         default_params = {
             "json": "1",
             "language": "all",
-            "filter": "all",
+            "filter": "recent",  # "recent" is usually better than "all"
             "review_type": "all",
             "purchase_type": "all",
             "num_per_page": "100",
@@ -79,11 +79,14 @@ class SteamReviewScraper:
             print(f"Failed to decode JSON from response. Content: {response.text}")
             return None
 
-    def fetch_reviews(self, params_override: Optional[dict] = None) -> list:
+    def fetch_reviews_with_filter(
+        self, filter_type: str, params_override: Optional[dict] = None
+    ) -> list:
         """
-        Fetches all reviews for the configured App ID.
+        Fetches reviews using a specific filter type.
 
         Args:
+            filter_type (str): The filter type to use ("recent", "updated", "all")
             params_override (dict, optional): Overrides default request parameters.
 
         Returns:
@@ -94,16 +97,27 @@ class SteamReviewScraper:
         cursor = "*"
         query_count = 0
         seen_cursors = set()
-        total_expected_reviews = None
-        consecutive_no_new_reviews = 0  # Track consecutive pages with no new reviews
-        max_consecutive_no_new = 2  # Stop after 2 consecutive pages with no new reviews
+        pages_without_new_reviews = 0
+        max_pages_without_new = 3
 
-        print(f"Starting review scrape for App ID: {self.app_id}")
+        # Set up parameters with the specified filter
+        default_params = {
+            "json": "1",
+            "language": "all",
+            "filter": filter_type,
+            "review_type": "all",
+            "purchase_type": "all",
+            "num_per_page": "100",
+        }
+        if params_override:
+            default_params.update(params_override)
+
+        print(f"Fetching reviews with filter: {filter_type}")
 
         while True:
             if cursor in seen_cursors:
                 print(
-                    "Cursor already used. Stopping pagination to avoid duplicate request."
+                    f"Cursor already used with filter {filter_type}. Stopping pagination."
                 )
                 break
             seen_cursors.add(cursor)
@@ -114,81 +128,209 @@ class SteamReviewScraper:
                 )
                 time.sleep(COOLDOWN_SECONDS)
 
-            data = self._make_request(cursor, params=params_override)
+            # Override the cursor in params
+            current_params = default_params.copy()
+            current_params["cursor"] = cursor
+
+            data = self._make_request(cursor, params=current_params)
             query_count += 1
 
             if not data or data.get("success") != 1:
-                print("API request failed or indicated failure. Stopping.")
+                print(f"API request failed for filter {filter_type}. Stopping.")
                 break
 
             reviews = data.get("reviews", [])
             if not reviews:
-                print("No more reviews found. Scrape complete.")
+                print(f"No more reviews found for filter {filter_type}.")
                 break
 
-            deduped = []
-            dup_count = 0
+            # Process reviews and only count new ones based on seen rec ids
+            new_reviews = []
             for review in reviews:
                 rec_id = review.get("recommendationid")
-                if rec_id in seen_ids:
-                    dup_count += 1
-                    continue
-                seen_ids.add(rec_id)
-                deduped.append(review)
+                if rec_id not in seen_ids:
+                    seen_ids.add(rec_id)
+                    new_reviews.append(review)
 
-            all_reviews.extend(deduped)
+            all_reviews.extend(new_reviews)
 
             print(
-                f"  > Fetched {len(reviews)} reviews on this page ({dup_count} duplicates skipped)."
+                f"  > Filter {filter_type}: {len(new_reviews)} new reviews from {len(reviews)} total"
             )
 
-            # Track consecutive pages with no new reviews
-            if len(deduped) == 0:
-                consecutive_no_new_reviews += 1
-                print(
-                    f"  > No new reviews on this page ({consecutive_no_new_reviews}/{max_consecutive_no_new} consecutive)"
-                )
-                if consecutive_no_new_reviews >= max_consecutive_no_new:
+            # Check if we're getting no new reviews
+            if len(new_reviews) == 0:
+                pages_without_new_reviews += 1
+                if pages_without_new_reviews >= max_pages_without_new:
                     print(
-                        f"  > Stopping after {max_consecutive_no_new} consecutive pages with no new reviews."
+                        f"  > No new reviews for {pages_without_new_reviews} pages with filter {filter_type}. Stopping."
                     )
                     break
             else:
-                consecutive_no_new_reviews = 0  # Reset counter
+                pages_without_new_reviews = 0
 
-            if total_expected_reviews is None and "query_summary" in data:
-                total_expected_reviews = data["query_summary"].get("total_reviews", 0)
-                print(f"Discovered a total of {total_expected_reviews} reviews.")
+            # Get next cursor
+            next_cursor = data.get("cursor")
+            if not next_cursor or next_cursor in seen_cursors:
+                print(f"No valid next cursor for filter {filter_type}. Stopping.")
+                break
 
-            print(
-                f"  > Downloaded {len(all_reviews)} / {total_expected_reviews or '?'} unique reviews..."
+            cursor = next_cursor
+
+        return all_reviews
+
+    def fetch_reviews(self, params_override: Optional[dict] = None) -> list:
+        """
+        Fetches all reviews using multiple filter strategies.
+
+        Args:
+            params_override (dict, optional): Overrides default request parameters.
+
+        Returns:
+            list: A list of review dictionaries.
+        """
+        print(f"Starting comprehensive review scrape for App ID: {self.app_id}")
+
+        all_reviews = []
+        seen_ids = set()
+
+        # Try different filter types
+        filters_to_try = ["recent", "updated"]
+
+        for filter_type in filters_to_try:
+            print(f"\n--- Trying filter: {filter_type} ---")
+
+            filter_reviews = self.fetch_reviews_with_filter(
+                filter_type, params_override
             )
 
-            # Early exit if we've reached the expected total
-            if total_expected_reviews and len(all_reviews) >= total_expected_reviews:
-                print("  > Reached expected total number of reviews. Stopping.")
-                break
+            # Add only unique reviews
+            new_unique_reviews = []
+            for review in filter_reviews:
+                rec_id = review.get("recommendationid")
+                if rec_id not in seen_ids:
+                    seen_ids.add(rec_id)
+                    new_unique_reviews.append(review)
 
-            # Check for high duplicate rate (>90%) as another stopping condition
-            if len(reviews) > 0 and (dup_count / len(reviews)) > 0.9:
-                print(
-                    f"  > High duplicate rate ({dup_count}/{len(reviews)} = {dup_count / len(reviews) * 100:.1f}%). Likely reached end of unique reviews."
-                )
-                # Don't break immediately, let the consecutive_no_new_reviews logic handle it
+            all_reviews.extend(new_unique_reviews)
+            print(
+                f"Added {len(new_unique_reviews)} unique reviews from filter {filter_type}"
+            )
+            print(f"Total unique reviews so far: {len(all_reviews)}")
 
-            next_cursor = data.get("cursor")
-            if not next_cursor:
-                print("No new cursor returned. Assuming all reviews have been fetched.")
-                break
-            if next_cursor in seen_cursors:
-                print(
-                    "Next cursor already seen. Ending pagination early to avoid duplicate fetch."
-                )
-                break
-            cursor = next_cursor
+        # If we still haven't gotten many reviews, try the "all" filter as a last resort
+        if len(all_reviews) < 10000:  # Arbitrary threshold
+            print(f"\n--- Trying filter: all (last resort) ---")
+            all_filter_reviews = self.fetch_reviews_with_filter("all", params_override)
+
+            new_unique_reviews = []
+            for review in all_filter_reviews:
+                rec_id = review.get("recommendationid")
+                if rec_id not in seen_ids:
+                    seen_ids.add(rec_id)
+                    new_unique_reviews.append(review)
+
+            all_reviews.extend(new_unique_reviews)
+            print(f"Added {len(new_unique_reviews)} unique reviews from filter 'all'")
+            print(f"Total unique reviews so far: {len(all_reviews)}")
 
         print(
             f"\nScraping finished. Total unique reviews downloaded: {len(all_reviews)}"
+        )
+        return all_reviews
+
+    def fetch_reviews_allow_duplicates(
+        self, params_override: Optional[dict] = None
+    ) -> list:
+        """
+        Alternative method: Fetch reviews allowing duplicates for later cleanup.
+        This method is more aggressive and will make more API calls.
+
+        Args:
+            params_override (dict, optional): Overrides default request parameters.
+
+        Returns:
+            list: A list of review dictionaries (may contain duplicates).
+        """
+        print(
+            f"Starting aggressive review scrape (allowing duplicates) for App ID: {self.app_id}"
+        )
+
+        all_reviews = []
+        filters_to_try = ["recent", "updated", "all"]
+
+        for filter_type in filters_to_try:
+            print(f"\n--- Fetching with filter: {filter_type} ---")
+
+            cursor = "*"
+            query_count = 0
+            seen_cursors = set()
+            consecutive_empty_pages = 0
+            max_consecutive_empty = 5
+
+            while True:
+                if cursor in seen_cursors:
+                    print(
+                        f"Cursor already used with filter {filter_type}. Moving to next filter."
+                    )
+                    break
+                seen_cursors.add(cursor)
+
+                if query_count > 0 and query_count % RATE_LIMIT_PER_MINUTE == 0:
+                    print(f"Rate limit hit ({query_count} requests). Cooling down...")
+                    time.sleep(COOLDOWN_SECONDS)
+
+                # Set up parameters
+                current_params = {
+                    "json": "1",
+                    "language": "all",
+                    "filter": filter_type,
+                    "review_type": "all",
+                    "purchase_type": "all",
+                    "num_per_page": "100",
+                    "cursor": cursor,
+                }
+                if params_override:
+                    current_params.update(params_override)
+
+                data = self._make_request(cursor, params=current_params)
+                query_count += 1
+
+                if not data or data.get("success") != 1:
+                    print(
+                        f"API request failed for filter {filter_type}. Moving to next filter."
+                    )
+                    break
+
+                reviews = data.get("reviews", [])
+                if not reviews:
+                    consecutive_empty_pages += 1
+                    if consecutive_empty_pages >= max_consecutive_empty:
+                        print(
+                            f"No reviews for {consecutive_empty_pages} consecutive pages. Moving to next filter."
+                        )
+                        break
+                    continue
+                else:
+                    consecutive_empty_pages = 0
+
+                all_reviews.extend(reviews)
+                print(
+                    f"  > Filter {filter_type}: Fetched {len(reviews)} reviews (total so far: {len(all_reviews)})"
+                )
+
+                # Get next cursor
+                next_cursor = data.get("cursor")
+                if not next_cursor or next_cursor in seen_cursors:
+                    print(
+                        f"No valid next cursor for filter {filter_type}. Moving to next filter."
+                    )
+                    break
+
+                cursor = next_cursor
+
+        print(
+            f"\nAggressive scraping finished. Total reviews downloaded: {len(all_reviews)} (may contain duplicates)"
         )
         return all_reviews
 
@@ -222,6 +364,29 @@ def save_reviews_to_json(reviews: list, app_id: int, filename: Optional[str] = N
         print(f"Error saving file: {e}")
 
 
+def deduplicate_reviews(reviews: list) -> list:
+    """
+    Remove duplicate reviews based on recommendation ID.
+
+    Args:
+        reviews (list): List of review dictionaries
+
+    Returns:
+        list: Deduplicated list of reviews
+    """
+    seen_ids = set()
+    unique_reviews = []
+
+    for review in reviews:
+        rec_id = review.get("recommendationid")
+        if rec_id not in seen_ids:
+            seen_ids.add(rec_id)
+            unique_reviews.append(review)
+
+    print(f"Deduplication: {len(reviews)} -> {len(unique_reviews)} reviews")
+    return unique_reviews
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Scrape all Steam reviews for a given App ID.",
@@ -238,6 +403,11 @@ def parse_args():
         default="all",
         help="Review language (e.g., 'english').",
     )
+    parser.add_argument(
+        "--aggressive",
+        action="store_true",
+        help="Use aggressive scraping (allows duplicates, more API calls)",
+    )
     return parser.parse_args()
 
 
@@ -247,7 +417,17 @@ if __name__ == "__main__":
     try:
         scraper = SteamReviewScraper(args.app_id)
         api_params = {"language": args.language}
-        reviews_data = scraper.fetch_reviews(params_override=api_params)
+
+        if args.aggressive:
+            print("Using aggressive scraping method...")
+            reviews_data = scraper.fetch_reviews_allow_duplicates(
+                params_override=api_params
+            )
+            
+            reviews_data = deduplicate_reviews(reviews_data)
+        else:
+            print("Using standard scraping method...")
+            reviews_data = scraper.fetch_reviews(params_override=api_params)
 
         if reviews_data:
             save_reviews_to_json(reviews_data, args.app_id, args.output)
