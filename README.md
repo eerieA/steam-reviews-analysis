@@ -1,6 +1,6 @@
 # Steam reviews analysis
 
-Only support processing reviews for **one game**, because this is mostly for personal use.
+Only support processing reviews for **one game**, because this is mostly for personal use. Needs a GPU with CUDA capability.
 
 ⚠️Temporarily only supports reviews in English.
 
@@ -9,7 +9,7 @@ Only support processing reviews for **one game**, because this is mostly for per
 - [Steam reviews analysis](#steam-reviews-analysis)
     - [Usage examples](#usage-examples)
         - [Quick start](#quick-start)
-        - [Customize constants](#customize-constants)
+        - [With customized constants](#with-customized-constants)
     - [Dependencies](#dependencies)
         - [List of dependencies](#list-of-dependencies)
         - [Package sizes](#package-sizes)
@@ -20,7 +20,9 @@ Only support processing reviews for **one game**, because this is mostly for per
 
 ### Quick start
 
-Do the following 3 steps sequentially.
+🚨First ensure the dependencies mentioned in [List of dependencies](#list-of-dependencies). Then if you can run the `tools\test_trfm_gpu.py` script without errors, it is probably good to go.
+
+After that, do the following 3 steps sequentially to get results.
 
 ```bash
 python reviews_scraper.py <app_id> -l english -o subfolder/filename.json
@@ -42,7 +44,7 @@ python create_word_cloud.py --filename subfolder/filename.json --appid <app_id>
 
 This will produce a word cloud graph from all the reviews in the JSON file you just saved, saved as `<app_id>_wordcloud.png`, which will be under `./output` by default..
 
-### Customize constants
+### With customized constants
 
 There are a few constants used in the scripts. They are stored in `config.json`.
 
@@ -50,8 +52,10 @@ There are a few constants used in the scripts. They are stored in `config.json`.
 |-----------|-------------|
 | `model_subfolder_name` | The subfolder name for the sentiment classification transformer model files |
 | `batch_size` | The batch size used when running sentiment analysis. The higher it is, the more VRAM the computation (inference) requires |
-| `top_k_labels` | The number of labels to count for one review string |
+| `top_k_labels` | The number of top labels to count for each review in sentiment analysis |
 | `output_dir` | The subfolder where output images will be saved |
+
+Customize these according to your needs. For example increase batch size from `8` to `32` if you have good VRAM, and run the sentiment analysis scripts again.
 
 ## Dependencies
 
@@ -59,7 +63,7 @@ There are a few constants used in the scripts. They are stored in `config.json`.
 
 **Python and packages**
 
-Python `3.13.1`. See requirements.txt for packages.
+Python `3.13.1`. See requirements.txt for packages. Note that torch+cu118 needs a GPU with CUDA.
 
 **Transformer model**
 
