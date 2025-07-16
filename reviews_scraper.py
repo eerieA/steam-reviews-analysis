@@ -220,7 +220,7 @@ class SteamReviewScraper:
 
         # If we still haven't gotten many reviews, try the "all" filter as a last resort
         if len(all_reviews) < 10000:  # Arbitrary threshold
-            print(f"\n--- Trying filter: all (last resort) ---")
+            print("\n--- Trying filter: all (last resort) ---")
             all_filter_reviews = self.fetch_reviews_with_filter("all", params_override)
 
             new_unique_reviews = []

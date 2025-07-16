@@ -1,15 +1,16 @@
 import argparse
 import os
 
-import nltk
-nltk.download('stopwords', download_dir='./nltk_data')
-nltk.data.path.append('./nltk_data')  # Tell NLTK to use your local folder
-
 import json
 import re
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from nltk.corpus import stopwords
+
+import nltk
+nltk.download('stopwords', download_dir='./nltk_data')
+nltk.data.path.append('./nltk_data')  # Tell NLTK to use local folder
+
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Generate a word cloud from Steam reviews")
@@ -35,7 +36,7 @@ if not os.path.isfile(filename):
     exit(1)
 
 # Config constants
-output_image = f"{appid}_wordcloud.png"
+output_image = f"output/{appid}_wordcloud.png"
 
 # Load reviews
 with open(filename, "r", encoding="utf-8") as f:

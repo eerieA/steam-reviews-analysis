@@ -134,7 +134,7 @@ dataset = dataset.map(extract_top_labels)
 all_top_labels = list(chain.from_iterable(dataset["top_labels"]))
 label_counts = pd.Series(all_top_labels).value_counts().sort_values(ascending=False)
 
-output_image = f"{appid}_emo_distrib.png"
+output_image = f"output/{appid}_emo_distrib.png"
 
 # Plot and save
 plt.figure(figsize=(12, 6))

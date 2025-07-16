@@ -2,6 +2,9 @@
 # Add more subfolders when necessary
 downloaded/*.json
 
+# Ignore output images in default subfolder
+output/*.png
+
 # Ignore transformer models subfolders, but not files directly under ./models
 # Add more when necessary
 models/**/
