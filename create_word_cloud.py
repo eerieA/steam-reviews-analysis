@@ -19,8 +19,15 @@ parser.add_argument(
     required=True,
     help="Path to the downloaded Steam reviews JSON file",
 )
+parser.add_argument(
+    "--appid",
+    type=int,
+    required=True,
+    help="Steam App ID of the game, for naming the output file"
+)
 args = parser.parse_args()
 filename = args.filename
+appid = args.appid
 
 # Check if the file exists
 if not os.path.isfile(filename):
@@ -28,7 +35,7 @@ if not os.path.isfile(filename):
     exit(1)
 
 # Config constants
-output_image = "wordcloud_reviews.png"
+output_image = f"{appid}_wordcloud.png"
 
 # Load reviews
 with open(filename, "r", encoding="utf-8") as f:

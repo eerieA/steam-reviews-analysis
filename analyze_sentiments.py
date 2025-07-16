@@ -22,8 +22,15 @@ parser.add_argument(
     required=True,
     help="Path to the downloaded reviews JSON file",
 )
+parser.add_argument(
+    "--appid",
+    type=int,
+    required=True,
+    help="Steam App ID of the game, for naming the output file"
+)
 args = parser.parse_args()
 filename = args.filename
+appid = args.appid
 
 # Check if the file exists
 if not os.path.isfile(filename):
@@ -127,6 +134,8 @@ dataset = dataset.map(extract_top_labels)
 all_top_labels = list(chain.from_iterable(dataset["top_labels"]))
 label_counts = pd.Series(all_top_labels).value_counts().sort_values(ascending=False)
 
+output_image = f"{appid}_emo_distrib.png"
+
 # Plot and save
 plt.figure(figsize=(12, 6))
 plt.bar(label_counts.index, label_counts.values, color='skyblue')
@@ -135,6 +144,6 @@ plt.title(f"Top-{top_k_labels} Emotion Distribution in Steam Reviews")
 plt.xlabel("Emotion")
 plt.ylabel("Number of Appearances")
 plt.tight_layout()
-plt.savefig(f"emotion_distribution_top{top_k_labels}.png", dpi=300)
-print(f"Plot saved as emotion_distribution_top{top_k_labels}.png")
+plt.savefig(output_image, dpi=300)
+print(f"Plot saved as {output_image}")
 print("Elapsed time:", time.time() - start)
