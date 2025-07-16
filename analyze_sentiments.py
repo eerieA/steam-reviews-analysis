@@ -48,9 +48,14 @@ except ImportError:
     device = -1
 
 # Config constants
-local_path = "./models/cirimus-modernbert-base-go-emo"
-batch_size = 8
-top_k_labels = 5
+with open("config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
+model_subfolder_name = config["model_subfolder_name"]
+batch_size = config["batch_size"]
+top_k_labels = config["top_k_labels"]
+output_dir = config["output_dir"]
+local_model_path = f"./models/{model_subfolder_name}"
+output_image = f"{output_dir}{appid}_emo_distrib.png"
 
 # Load JSON and extract reviews
 with open(filename, "r", encoding="utf-8") as f:
@@ -67,8 +72,8 @@ clean_reviews = [
 dataset = Dataset.from_list(clean_reviews)
 
 # Load tokenizer & model from offline model files
-tokenizer = AutoTokenizer.from_pretrained(local_path)
-model = AutoModelForSequenceClassification.from_pretrained(local_path)
+tokenizer = AutoTokenizer.from_pretrained(local_model_path)
+model = AutoModelForSequenceClassification.from_pretrained(local_model_path)
 
 classifier = pipeline(
     "text-classification",
@@ -133,8 +138,6 @@ dataset = dataset.map(extract_top_labels)
 # Flatten top labels and count
 all_top_labels = list(chain.from_iterable(dataset["top_labels"]))
 label_counts = pd.Series(all_top_labels).value_counts().sort_values(ascending=False)
-
-output_image = f"output/{appid}_emo_distrib.png"
 
 # Plot and save
 plt.figure(figsize=(12, 6))

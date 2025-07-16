@@ -36,7 +36,10 @@ if not os.path.isfile(filename):
     exit(1)
 
 # Config constants
-output_image = f"output/{appid}_wordcloud.png"
+with open("config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
+output_dir = config["output_dir"]
+output_image = f"{output_dir}{appid}_wordcloud.png"
 
 # Load reviews
 with open(filename, "r", encoding="utf-8") as f:
