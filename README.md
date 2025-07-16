@@ -28,18 +28,18 @@ python reviews_scraper.py <app_id> -l english -o subfolder/filename.json
 This will scrape `english` (English) language reviews of the game with id `<app_id>` and save them in a json file in the specified relative path.
 
 ```bash
-python analyze_sentiments.py --filename subfolder/filename.json
+python analyze_sentiments.py --filename subfolder/filename.json --appid <app_id>
 ```
 
-This will extract frequencies of sentiment labels from all the reviews in the JSON file you just saved, then plot a graph saved as `emotion_distribution_top5.png`
+This will extract frequencies of sentiment labels from all the reviews in the JSON file you just saved, then plot a graph saved as `<app_id>_emo_distrib.png`, which will be under `./output` by default.
 
 > FYI it uses an emotion classification transformer model to extract the labels, and only collects top 5 labels from each review be default.
 
 ```bash
-python create_word_cloud.py --filename subfolder/filename.json
+python create_word_cloud.py --filename subfolder/filename.json --appid <app_id>
 ```
 
-This will produce a word cloud graph from all the reviews in the JSON file you just saved, saved as `wordcloud_reviews.png`.
+This will produce a word cloud graph from all the reviews in the JSON file you just saved, saved as `<app_id>_wordcloud.png`, which will be under `./output` by default..
 
 ## Dependencies
 
@@ -61,6 +61,6 @@ Also a transformer model's files put in a child folder under `./models/`. This p
 
 ### Package sizes
 
-The largest one would be PyTorch with CUDA 118. Check `venv/Lib/site-packages/torch/lib` and you will see several large files there. For me the total was about 5 gb.
+The largest one would be PyTorch with CUDA 118. Check your `./venv/Lib/site-packages/torch/lib` and you will see several large files there. For me the total was about 5 gb.
 
 The second largest probably will be the transformer model, which can be from ~300 mb to ~1.2 gb or more.
