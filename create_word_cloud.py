@@ -1,5 +1,6 @@
 import argparse
 import os
+from pathlib import Path
 
 import json
 import re
@@ -36,7 +37,12 @@ if not os.path.isfile(filename):
     exit(1)
 
 # Config constants
-with open("config.json", "r", encoding="utf-8") as f:
+# Get the current script's directory
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Path to config.json (same directory)
+CONFIG_PATH = SCRIPT_DIR / "config.json"
+# Load config
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
 output_dir = config["output_dir"]
 output_image = f"{output_dir}{appid}_wordcloud.png"

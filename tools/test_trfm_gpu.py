@@ -1,3 +1,5 @@
+from pathlib import Path
+import json
 import torch
 torch._dynamo.config.suppress_errors = True # Disable compilation that would use TorchInductor and Triton etc
 torch._dynamo.disable()
@@ -7,10 +9,18 @@ logging.getLogger("torch._dynamo").setLevel(logging.ERROR)  # Also don't display
 
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 
-local_path = "./models/cirimus-modernbert-base-go-emo"
+# Get the current script's directory
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Path to config.json (one level above)
+CONFIG_PATH = SCRIPT_DIR.parent / "config.json"
+# Load config
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    config = json.load(f)
+model_subfolder_name = config["model_subfolder_name"]
+local_model_path = f"{SCRIPT_DIR.parent}/models/{model_subfolder_name}"
 
-tokenizer = AutoTokenizer.from_pretrained(local_path)
-model = AutoModelForSequenceClassification.from_pretrained(local_path)
+tokenizer = AutoTokenizer.from_pretrained(local_model_path)
+model = AutoModelForSequenceClassification.from_pretrained(local_model_path)
 
 # Use GPU (device=0); use device=-1 for CPU
 classifier = pipeline(

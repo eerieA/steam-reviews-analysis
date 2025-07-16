@@ -1,5 +1,6 @@
 import argparse
 import os
+from pathlib import Path
 import time
 import json
 import logging
@@ -48,7 +49,11 @@ except ImportError:
     device = -1
 
 # Config constants
-with open("config.json", "r", encoding="utf-8") as f:
+# Get the current script's directory
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Path to config.json (same directory)
+CONFIG_PATH = SCRIPT_DIR / "config.json"
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
 model_subfolder_name = config["model_subfolder_name"]
 batch_size = config["batch_size"]
