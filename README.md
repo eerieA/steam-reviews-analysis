@@ -69,7 +69,7 @@ Customize these according to your needs. For example increase batch size from `8
 
 Python `3.13.1`. See requirements.txt for packages. Note that torch+cu118 needs a GPU with CUDA.
 
-**Transformer model**
+**Transformer models**
 
 Also a transformer model's files put in a child folder under `./models/`. This program only can use the ones with typical files, like this:
 
@@ -85,12 +85,12 @@ Also a transformer model's files put in a child folder under `./models/`. This p
 
 The recommended and default models are
 
-- `cirimus-modernbert-base-go-emo` (corresponds to [cirimus/modernbert-base-go-emotions](https://huggingface.co/cirimus/modernbert-base-go-emotions))
-- `schuylerh-bert-multi-go-emo` (corresponds to [SchuylerH/bert-multilingual-go-emtions](https://huggingface.co/SchuylerH/bert-multilingual-go-emtions))
+- [cirimus/modernbert-base-go-emotions](https://huggingface.co/cirimus/modernbert-base-go-emotions), default subfolder name `cirimus-modernbert-base-go-emo`
+- [SchuylerH/bert-multilingual-go-emtions](https://huggingface.co/SchuylerH/bert-multilingual-go-emtions), default subfolder name `schuylerh-bert-multi-go-emo`
 
-so you need to download their files manually and put them under `./models/`, with exactly the subfolder names above, for example `./models/schuylerh-bert-multi-go-emo`.
+You need to download their files manually and put them under ./models/, with exactly the subfolder names above, for example `./models/schuylerh-bert-multi-go-emo`.
 
-> You can change these subfolder names and tell the script about them through ./config.json, even if you use the default models.
+> You can change these subfolder names and tell the script about them through ./config.json, even if you use the default models. See [With customized constants](#with-customized-constants).
 
 But as described above, other models can be used, and if that is the case, please also change the values in `config.json` to match your model file subfolder names.
 
