@@ -1,5 +1,6 @@
 {
-  "model_subfolder_name": "cirimus-modernbert-base-go-emo",
+  "model_subfolder_eng": "cirimus-modernbert-base-go-emo",
+  "model_subfolder_sch": "schuylerh-bert-multi-go-emo",
   "batch_size": 8,
   "top_k_labels": 5,
   "output_dir": "./output/"

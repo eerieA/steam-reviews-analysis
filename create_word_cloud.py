@@ -13,6 +13,8 @@ import nltk
 nltk.download('stopwords', download_dir='./nltk_data')
 nltk.data.path.append('./nltk_data')  # Tell NLTK to use local folder
 
+# TODO: separate preprocessing of different languages
+# TODO: Add a constant dict somewhere to lookup available languages and report error if not supported
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Generate a word cloud from Steam reviews")
@@ -37,8 +39,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 filename = args.filename
-appid = args.appid
 language = args.language
+appid = args.appid
 
 # Check if the file exists
 if not os.path.isfile(filename):

@@ -14,6 +14,7 @@ from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassifica
 import torch
 from torch.nn.functional import softmax
 
+
 # Argument parsing
 start = time.time()
 parser = argparse.ArgumentParser(description="Analyze Steam review sentiments")
@@ -24,6 +25,13 @@ parser.add_argument(
     help="Path to the downloaded reviews JSON file",
 )
 parser.add_argument(
+    "-l",
+    "--language",
+    type=str,
+    default="english",
+    help="Review language (e.g., 'english').",
+)
+parser.add_argument(
     "--appid",
     type=int,
     required=True,
@@ -31,6 +39,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 filename = args.filename
+language = args.language
 appid = args.appid
 
 # Check if the file exists
@@ -55,12 +64,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "config.json"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
-model_subfolder_name = config["model_subfolder_name"]
+model_subfolder_eng = config["model_subfolder_eng"]
+model_subfolder_sch = config["model_subfolder_sch"]
+local_model_path_eng = f"./models/{model_subfolder_eng}"
+local_model_path_sch = f"./models/{model_subfolder_sch}"
 batch_size = config["batch_size"]
 top_k_labels = config["top_k_labels"]
 output_dir = config["output_dir"]
-local_model_path = f"./models/{model_subfolder_name}"
-output_image = f"{output_dir}{appid}_emo_distrib.png"
+output_image = f"{output_dir}{appid}_emo_distrib_{language}.png"
 
 # Load JSON and extract reviews
 with open(filename, "r", encoding="utf-8") as f:
@@ -76,9 +87,18 @@ clean_reviews = [
 # Convert to Hugging Face Dataset
 dataset = Dataset.from_list(clean_reviews)
 
-# Load tokenizer & model from offline model files
-tokenizer = AutoTokenizer.from_pretrained(local_model_path)
-model = AutoModelForSequenceClassification.from_pretrained(local_model_path)
+# Load tokenizer & model from offline model files for selected language
+match language:
+    case "english":
+        tokenizer = AutoTokenizer.from_pretrained(local_model_path_eng)
+        model = AutoModelForSequenceClassification.from_pretrained(local_model_path_eng)
+    case "schinese":
+        tokenizer = AutoTokenizer.from_pretrained(local_model_path_sch)
+        model = AutoModelForSequenceClassification.from_pretrained(local_model_path_sch)
+    case _:
+        print("Invalid language. Exiting...")
+        exit(1)
+
 
 classifier = pipeline(
     "text-classification",
