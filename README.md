@@ -13,6 +13,8 @@ Only support processing reviews for **one game**, because this is mostly for per
     - [Dependencies](#dependencies)
         - [List of dependencies](#list-of-dependencies)
         - [Package sizes](#package-sizes)
+    - [License](#license)
+    - [Third-Party Licenses](#third-party-licenses)
 
 <!-- /TOC -->
 
@@ -99,3 +101,10 @@ But as described above, other models can be used, and if that is the case, pleas
 The largest one would be PyTorch with CUDA 118. I checked my `./venv/Lib/site-packages/torch/lib` and saw several large files there. For me the total was about 5 gb.
 
 The second largest probably will be the transformer models, each of which can be from ~300 mb to ~1.2 gb or more. The default ones are about 600 mb.
+
+## License
+This project is licensed under the MIT License.
+
+## Third-Party Licenses
+This project includes the Noto Sans CJK font, licensed under the SIL Open Font License (OFL).
+See [assets/OFL.txt](assets/OFL.txt) for the full license text.
