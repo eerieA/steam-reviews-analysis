@@ -88,8 +88,8 @@ Also a transformer model's files put in a child folder under `./models/`. This p
 
 The recommended and default models are
 
-- [cirimus/modernbert-base-go-emotions](https://huggingface.co/cirimus/modernbert-base-go-emotions), default subfolder name `cirimus-modernbert-base-go-emo`
-- [SchuylerH/bert-multilingual-go-emtions](https://huggingface.co/SchuylerH/bert-multilingual-go-emtions), default subfolder name `schuylerh-bert-multi-go-emo`
+- English: [cirimus/modernbert-base-go-emotions](https://huggingface.co/cirimus/modernbert-base-go-emotions), default subfolder name `cirimus-modernbert-base-go-emo`
+- SChinese: [SchuylerH/bert-multilingual-go-emtions](https://huggingface.co/SchuylerH/bert-multilingual-go-emtions), default subfolder name `schuylerh-bert-multi-go-emo`
 
 You need to download their files manually and put them under ./models/, with exactly the subfolder names above, for example `./models/schuylerh-bert-multi-go-emo`.
 
@@ -101,7 +101,7 @@ But as described above, other models can be used, and if that is the case, pleas
 
 The largest one would be PyTorch with CUDA 118. I checked my `./venv/Lib/site-packages/torch/lib` and saw several large files there. For me the total was about 5 gb.
 
-The second largest probably will be the transformer models, each of which can be from ~300 mb to ~1.2 gb or more. The default ones are about 500~700 mb each.
+The second largest probably will be the transformer models, each of which can be from $\scriptsize \sim$ 300 mb to $\scriptsize \sim$ 1.2 gb or more. The default ones are about 500 $\scriptsize \sim$ 700 mb each.
 
 ## License
 This project is licensed under the MIT License.
