@@ -40,7 +40,7 @@ After that, do the following 3 steps sequentially to get results.
 
     This will extract frequencies of sentiment labels from all the `english` reviews in the JSON file you just saved, then plot a graph saved as `<app_id>_emo_distrib_english.png`, which will be under `./output` by default.
 
-    > FYI it uses an emotion classification transformer model to extract the labels, and only collects top 5 labels from each review be default.
+    > FYI it uses an emotion classification transformer model to extract the labels, and only collects top 5 labels from each review by default.
 
 3.
     ```bash
@@ -53,15 +53,16 @@ After that, do the following 3 steps sequentially to get results.
 
 There are a few constants used in the scripts. They are stored in `config.json`.
 
-| Constant name | Description |
-|-----------|-------------|
-| `model_subfolder_eng` | The subfolder name for the sentiment classification transformer model files for English |
-| `model_subfolder_sch` | The subfolder name for the sentiment classification transformer model files for SChinese |
-| `batch_size` | The batch size used when running sentiment analysis. The higher it is, the more VRAM the computation (inference) requires |
-| `top_k_labels` | The number of top labels to count for each review in sentiment analysis |
-| `output_dir` | The subfolder where output images will be saved |
+| Constant name | Value | Modify? |
+|-----------|-------------|-------------|
+| `batch_size` | The batch size used when running sentiment analysis. The higher it is, the more VRAM the computation (inference) requires | Depends on your VRAM |
+| `top_k_labels` | The number of top labels to count for each review in sentiment analysis | If you need |
+| `output_dir` | The subfolder where output images will be saved | Prob no need to |
+| `languages.<language>.name` | The display name for a language | Prob no need to |
+| `languages.<language>.model_subfolder` | The subfolder name for the sentiment classification transformer model files for English | Depends on your choice of models |
+| `languages.<language>.processor_class` | The qualified reference path to a language preprocessro class, as a string | Please don't |
 
-Customize these according to your needs. For example increase batch size from `8` to `32` if you have good VRAM, and run the sentiment analysis scripts again.
+Customize these according to your environment and usage. For example increase batch size from `8` (for a GPU with 8gb VRAM) to `32` if you have good VRAM, and run the sentiment analysis scripts after the change.
 
 ## Dependencies
 
@@ -100,11 +101,10 @@ But as described above, other models can be used, and if that is the case, pleas
 
 The largest one would be PyTorch with CUDA 118. I checked my `./venv/Lib/site-packages/torch/lib` and saw several large files there. For me the total was about 5 gb.
 
-The second largest probably will be the transformer models, each of which can be from ~300 mb to ~1.2 gb or more. The default ones are about 600 mb.
+The second largest probably will be the transformer models, each of which can be from ~300 mb to ~1.2 gb or more. The default ones are about 500~700 mb each.
 
 ## License
 This project is licensed under the MIT License.
 
 ## Third-Party Licenses
-This project includes the Noto Sans CJK font, licensed under the SIL Open Font License (OFL).
-See [assets/OFL.txt](assets/OFL.txt) for the full license text.
+This project includes the Noto Sans CJK font (for word cloud graph rendering), licensed under the SIL Open Font License (OFL). See [assets/OFL.txt](assets/OFL.txt) for the full license text.
