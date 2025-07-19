@@ -1,40 +1,54 @@
-import argparse, importlib
+import argparse
 import os
 from pathlib import Path
 import json
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
-from preprocessors.base import LanguageProcessor
+# Central language config module
+from utils.language_reg import get_registry, validate_language, get_language_processor
 
 
-# Language processor registry, for dynamic module loading
-# The values are fully qualified reference to a class or function as a string
-LANGUAGE_PROCESSORS = {
-    "english": "preprocessors.english.EnglishProcessor",
-    "schinese": "preprocessors.schinese.ChineseProcessor",
-}
+def load_reviews(filename: str) -> list[str]:
+    """Load reviews from JSON file"""
+    with open(filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-def get_supported_langs():
-    return ", ".join(LANGUAGE_PROCESSORS.keys())
+    return [review["review"]
+            for review in data["reviews"]
+            if "review" in review]
 
-def get_language_processor(language):
-    """Factory function to get appropriate language processor"""
-    qualname = LANGUAGE_PROCESSORS.get(language)
-    if not qualname:
-        raise ValueError(
-            f"Unsupported language '{language}'. Available languages: {get_supported_langs()}")
-    
-    module_name, class_name = qualname.rsplit(".", 1)
-    mod = importlib.import_module(module_name)
-    PreprocClass = getattr(mod, class_name)
-    if not issubclass(PreprocClass, LanguageProcessor):
-        raise TypeError(f"{class_name} is not subclass of LanguageProcessor")
 
-    return PreprocClass()
+def generate_wordcloud(text: str, output_path: str, language: str):
+    """Generate and save word cloud"""
+    registry = get_registry()
+    language_name = registry.get_config(language).name
+
+    wc = WordCloud(
+        width=1200,
+        height=600,
+        background_color='white',
+        max_words=200,
+        collocations=True,
+        font_path="./assets/NotoSansCJK-Regular.ttc"
+    ).generate(text)
+
+    # Plot
+    plt.figure(figsize=(14, 7))
+    plt.imshow(wc, interpolation="bilinear")
+    plt.axis("off")
+    plt.title(
+        f"Most Frequent Words in Steam Reviews ({language_name})", fontsize=16)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    print(f"Word cloud saved to: {output_path}")
 
 
 def main():
+    # Get language registry for help text
+    registry = get_registry()
+    supported_languages = ", ".join(registry.get_supported_languages())
+
     # Argument parsing
     parser = argparse.ArgumentParser(
         description="Generate a word cloud from Steam reviews")
@@ -49,7 +63,7 @@ def main():
         "--language",
         type=str,
         default="english",
-        help=f"Review language. Available: {get_supported_langs()}",
+        help=f"Review language. Available: {supported_languages}",
     )
     parser.add_argument(
         "--appid",
@@ -59,60 +73,44 @@ def main():
     )
     args = parser.parse_args()
 
-    # Check if the file exists
+    # Validate inputs
     if not os.path.isfile(args.filename):
         print(f"Error: File not found → {args.filename}")
         exit(1)
-    
-    # Check if the language is supported
-    if args.language not in LANGUAGE_PROCESSORS:
-        print(f"Error: Unsupported language '{args.language}'. Available languages: {get_supported_langs()}")
-        exit(1)
 
-    # Get language processor
     try:
-        processor = get_language_processor(args.language)
+        language = validate_language(args.language)
     except ValueError as e:
         print(f"Error: {e}")
         exit(1)
 
-    # Config constants
+    # Load configuration
     SCRIPT_DIR = Path(__file__).resolve().parent
     CONFIG_PATH = SCRIPT_DIR / "config.json"
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         config = json.load(f)
+
     output_dir = config["output_dir"]
-    output_image = f"{output_dir}{args.appid}_wordcloud_{args.language}.png"
+    output_image = f"{output_dir}{args.appid}_wordcloud_{language}.png"
 
-    # Load reviews
-    with open(args.filename, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Get language processor
+    try:
+        processor = get_language_processor(language)
+    except (ImportError, AttributeError) as e:
+        print(f"Error loading language processor: {e}")
+        exit(1)
 
-    reviews = [review["review"]
-               for review in data["reviews"] if "review" in review]
+    # Load and process reviews
+    print(f"Loading reviews from {args.filename}...")
+    reviews = load_reviews(args.filename)
 
-    # Process text using language-specific processor
+    print(f"Processing text for {registry.get_config(language).name}...")
     cleaned_reviews = [processor.clean_text(review) for review in reviews]
     all_text = " ".join(cleaned_reviews)
 
-    # Generate Word Cloud
-    wc = WordCloud(
-        width=1200,
-        height=600,
-        background_color='white',
-        max_words=200,
-        collocations=True,
-        font_path="./assets/NotoSansCJK-Regular.ttc"
-    ).generate(all_text)
-
     # Plot
-    plt.figure(figsize=(14, 7))
-    plt.imshow(wc, interpolation="bilinear")
-    plt.axis("off")
-    plt.title("Most Frequent Words in Steam Reviews", fontsize=16)
-    plt.tight_layout()
-    plt.savefig(output_image, dpi=300)
-    print(f"Word cloud saved to: {output_image}")
+    print("Generating word cloud...")
+    generate_wordcloud(all_text, output_image, language)
 
 
 if __name__ == "__main__":

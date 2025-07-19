@@ -10,168 +10,188 @@ import matplotlib.pyplot as plt
 
 from itertools import chain
 from datasets import Dataset
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from transformers import pipeline
 import torch
 from torch.nn.functional import softmax
 
+# Central language config module
+from utils.language_reg import get_registry, validate_language
 
-# Argument parsing
-start = time.time()
-parser = argparse.ArgumentParser(description="Analyze Steam review sentiments")
-parser.add_argument(
-    "--filename",
-    type=str,
-    required=True,
-    help="Path to the downloaded reviews JSON file",
-)
-parser.add_argument(
-    "-l",
-    "--language",
-    type=str,
-    default="english",
-    help="Review language (e.g., 'english').",
-)
-parser.add_argument(
-    "--appid",
-    type=int,
-    required=True,
-    help="Steam App ID of the game, for naming the output file"
-)
-args = parser.parse_args()
-filename = args.filename
-language = args.language
-appid = args.appid
 
-# Check if the file exists
-if not os.path.isfile(filename):
-    print(f"Error: File not found → {filename}")
-    exit(1)
+def detect_device():
+    """Detect GPU/CPU device for processing"""
+    try:
+        import torch
+        torch._dynamo.config.suppress_errors = True
+        torch._dynamo.disable()
+        logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
+        return 0 if torch.cuda.is_available() else -1
+    except ImportError:
+        return -1
 
-# Try to detect a GPU; fall back to CPU
-try:
-    import torch
-    torch._dynamo.config.suppress_errors = True # See comments in test_trfm_gpu.py about why these configs
-    torch._dynamo.disable()
-    logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-    device = 0 if torch.cuda.is_available() else -1
-except ImportError:
-    device = -1
 
-# Config constants
-# Get the current script's directory
-SCRIPT_DIR = Path(__file__).resolve().parent
-# Path to config.json (same directory)
-CONFIG_PATH = SCRIPT_DIR / "config.json"
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    config = json.load(f)
-model_subfolder_eng = config["model_subfolder_eng"]
-model_subfolder_sch = config["model_subfolder_sch"]
-local_model_path_eng = f"./models/{model_subfolder_eng}"
-local_model_path_sch = f"./models/{model_subfolder_sch}"
-batch_size = config["batch_size"]
-top_k_labels = config["top_k_labels"]
-output_dir = config["output_dir"]
-output_image = f"{output_dir}{appid}_emo_distrib_{language}.png"
+def load_and_clean_reviews(filename: str) -> Dataset:
+    """Load reviews from JSON file and return clean dataset"""
+    with open(filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-# Load JSON and extract reviews
-with open(filename, "r", encoding="utf-8") as f:
-    data = json.load(f)
+    # Extract only the review and language fields to avoid Arrow schema issues
+    clean_reviews = [
+        {"review": r["review"], "language": r.get("language", "unknown")}
+        for r in data["reviews"]
+        if isinstance(r.get("review"), str)  # Filter out non-string reviews
+    ]
 
-# Extract only the review and language fields to avoid Arrow schema issues
-clean_reviews = [
-    {"review": r["review"], "language": r.get("language", "unknown")}
-    for r in data["reviews"]
-    if isinstance(r.get("review"), str)  # Filter out non-string reviews
-]
+    return Dataset.from_list(clean_reviews)
 
-# Convert to Hugging Face Dataset
-dataset = Dataset.from_list(clean_reviews)
 
-# Load tokenizer & model from offline model files for selected language
-match language:
-    case "english":
-        tokenizer = AutoTokenizer.from_pretrained(local_model_path_eng)
-        model = AutoModelForSequenceClassification.from_pretrained(local_model_path_eng)
-    case "schinese":
-        tokenizer = AutoTokenizer.from_pretrained(local_model_path_sch)
-        model = AutoModelForSequenceClassification.from_pretrained(local_model_path_sch)
-    case _:
-        print("Invalid language. Exiting...")
+def create_classify_function(tokenizer, model, device: int, top_k_labels: int):
+    """Create classification function based on tokennizer and model (for a language), and device.
+       The return is a function pointer, the function also sets up data post-proc parameters before the plot,
+       such as top_k_labels. """
+
+    # Need to know the correct device, GPU or CPU
+    target_device = f"cuda:{device}" if device >= 0 else "cpu"
+    model.to(target_device)
+
+    def classify(batch):
+        encodings = tokenizer(
+            batch["review"], padding=True, truncation=True, return_tensors="pt"
+        )
+        encodings = {k: v.to(target_device) for k, v in encodings.items()}
+
+        with torch.no_grad():
+            outputs = model(**encodings)
+            probs = softmax(outputs.logits, dim=1)
+
+        probs = probs.cpu().numpy()
+
+        top_k = probs.argsort(axis=1)[:, -top_k_labels:][:, ::-1]
+        labels = model.config.id2label
+        return {
+            "raw_scores": [
+                [{"label": labels[i], "score": float(
+                    row_probs[i])} for i in row_topk]
+                for row_probs, row_topk in zip(probs, top_k)
+            ]
+        }
+
+    return classify
+
+
+def extract_top_labels_function(top_k_labels: int):
+    """Create the top labels extraction function"""
+    def extract_top_labels(example):
+        sorted_scores = sorted(
+            example["raw_scores"], key=lambda x: x["score"], reverse=True)
+        top_labels = [entry["label"] for entry in sorted_scores[:top_k_labels]]
+        return {"top_labels": top_labels}
+
+    return extract_top_labels
+
+
+def plot_emotion_distribution(label_counts: pd.Series, output_image: str, top_k_labels: int):
+    """Create and save emotion distribution plot"""
+    plt.figure(figsize=(12, 6))
+    plt.bar(label_counts.index, label_counts.values, color='skyblue')
+    plt.xticks(rotation=45, ha="right")
+    plt.title(f"Top-{top_k_labels} Emotion Distribution in Steam Reviews")
+    plt.xlabel("Emotion")
+    plt.ylabel("Number of Appearances")
+    plt.tight_layout()
+    plt.savefig(output_image, dpi=300)
+    print(f"Plot saved as {output_image}")
+
+
+def main():
+    start = time.time()
+
+    # Get language registry
+    registry = get_registry()
+    supported_languages = ", ".join(registry.get_supported_languages())
+
+    # Argument parsing
+    parser = argparse.ArgumentParser(
+        description="Analyze Steam review sentiments")
+    parser.add_argument(
+        "--filename",
+        type=str,
+        required=True,
+        help="Path to the downloaded reviews JSON file",
+    )
+    parser.add_argument(
+        "-l",
+        "--language",
+        type=str,
+        default="english",
+        help=f"Review language. Available: {supported_languages}",
+    )
+    parser.add_argument(
+        "--appid",
+        type=int,
+        required=True,
+        help="Steam App ID of the game, for naming the output file"
+    )
+    args = parser.parse_args()
+
+    # Validate inputs
+    if not os.path.isfile(args.filename):
+        print(f"Error: File not found → {args.filename}")
         exit(1)
 
+    try:
+        language = validate_language(args.language)
+    except ValueError as e:
+        print(f"Error: {e}")
+        exit(1)
 
-classifier = pipeline(
-    "text-classification",
-    model=model,
-    tokenizer=tokenizer,
-    device=device,
-    top_k=None,
-    batch_size=batch_size,
-)
+    # Load configuration
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    CONFIG_PATH = SCRIPT_DIR / "config.json"
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = json.load(f)
 
-# Run classification using batched mapping
-""" With manual tokenizer + model, just to suppress a warning.
-So actually this:
-def classify(batch):
-    result = classifier(batch["review"])  # <- this triggers the warning
-    return {"raw_scores": result}
-would have the same result and speed XD"""
-def classify(batch):
-    encodings = tokenizer(batch["review"], padding=True, truncation=True, return_tensors="pt")
-    encodings = {k: v.to(device) for k, v in encodings.items()}
-    with torch.no_grad():   # Only prediction (inference), does not need grads
-        outputs = model(**encodings)
-        probs = softmax(outputs.logits, dim=1)
-    probs = probs.cpu().numpy() # Have to move back to CPU bcz NumPy needs it
+    batch_size = config["batch_size"]
+    top_k_labels = config["top_k_labels"]
+    output_dir = config["output_dir"]
+    output_image = f"{output_dir}{args.appid}_emo_distrib_{language}.png"
 
-    top_k = probs.argsort(axis=1)[:, -top_k_labels:][:, ::-1]
-    labels = model.config.id2label
+    device = detect_device()
 
-    batch_results = []
-    for row_probs, row_topk in zip(probs, top_k):
-        batch_results.append([
-            {"label": labels[i], "score": float(row_probs[i])}
-            for i in row_topk
-        ])
+    # Load and process data
+    print(f"Loading reviews from {args.filename}...")
+    dataset = load_and_clean_reviews(args.filename)
 
-    """ Output would look like:
-    {
-        "raw_scores": [
-            [ {"label": "joy", "score": 0.84}, {"label": "admiration", "score": 0.10}, ... ],  # review 1
-            [ {"label": "amusement", "score": 0.65}, {"label": "joy", "score": 0.21}, ... ],  # review 2
-            ...
-        ]
-    }
-    . Uncomment the debug prints below to see some actual samples.
-    """    
-    # import pprint
-    # print("\nSample raw_scores from classify:")
-    # pprint.pprint(batch_results[:3])
+    print(
+        f"Setting up sentiment analysis for {registry.get_config(language).name}...")
+    tokenizer, model = registry.get_model_components(language)
+    if device >= 0:
+        model = model.to(f"cuda:{device}")
+    else:
+        model = model.to("cpu")
 
-    return {"raw_scores": batch_results}
+    # Create classification function
+    classify_fn = create_classify_function(
+        tokenizer, model, device, top_k_labels)
 
-dataset = dataset.map(classify, batched=True, batch_size=batch_size)
+    print("Running sentiment analysis...")
+    dataset = dataset.map(classify_fn, batched=True, batch_size=batch_size)
 
-# Extract top-k emotion labels
-def extract_top_labels(example):
-    sorted_scores = sorted(example["raw_scores"], key=lambda x: x["score"], reverse=True)
-    top_labels = [entry["label"] for entry in sorted_scores[:top_k_labels]]
-    return {"top_labels": top_labels}
+    # Extract top labels
+    extract_fn = extract_top_labels_function(top_k_labels)
+    dataset = dataset.map(extract_fn)
 
-dataset = dataset.map(extract_top_labels)
+    # Analyze results
+    print("Analyzing emotion distribution...")
+    all_top_labels = list(chain.from_iterable(dataset["top_labels"]))
+    label_counts = pd.Series(
+        all_top_labels).value_counts().sort_values(ascending=False)
 
-# Flatten top labels and count
-all_top_labels = list(chain.from_iterable(dataset["top_labels"]))
-label_counts = pd.Series(all_top_labels).value_counts().sort_values(ascending=False)
+    # Plot
+    plot_emotion_distribution(label_counts, output_image, top_k_labels)
 
-# Plot and save
-plt.figure(figsize=(12, 6))
-plt.bar(label_counts.index, label_counts.values, color='skyblue')
-plt.xticks(rotation=45, ha="right")
-plt.title(f"Top-{top_k_labels} Emotion Distribution in Steam Reviews")
-plt.xlabel("Emotion")
-plt.ylabel("Number of Appearances")
-plt.tight_layout()
-plt.savefig(output_image, dpi=300)
-print(f"Plot saved as {output_image}")
-print("Elapsed time:", time.time() - start)
+    print("Elapsed time:", time.time() - start)
+
+
+if __name__ == "__main__":
+    main()
