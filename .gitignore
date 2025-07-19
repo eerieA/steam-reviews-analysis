@@ -12,3 +12,6 @@ models/**/
 # Ignore auxiliary data required by packages, like nltk's stopwords
 # Add more when necessary
 nltk_data/
+
+# Python caches
+**/__pycache__/

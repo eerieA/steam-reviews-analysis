@@ -1,98 +1,18 @@
-import argparse
+import argparse, importlib
 import os
 from pathlib import Path
 import json
-import re
-from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-from nltk.corpus import stopwords
-import jieba    # Chinese word segmentation
-import nltk
 
-nltk.download('stopwords', download_dir='./nltk_data')
-nltk.data.path.append('./nltk_data')  # Tell NLTK to use local folder
+from preprocessors.base import LanguageProcessor
 
 
-class LanguageProcessor(ABC):
-    """Abstract base class for language-specific text processing"""
-
-    def __init__(self):
-        self.stop_words = set()
-        self._setup_stop_words()
-
-    @abstractmethod
-    def _setup_stop_words(self):
-        """Setup language-specific stop words"""
-        pass
-
-    @abstractmethod
-    def tokenize(self, text):
-        """Tokenize text according to language rules"""
-        pass
-
-    @abstractmethod
-    def get_regex_pattern(self):
-        """Return regex pattern for keeping valid characters"""
-        pass
-
-    def clean_text(self, text):
-        """Clean and process text"""
-        text = text.lower()
-        text = re.sub(r"http\S+", "", text)  # Remove URLs
-        text = re.sub(self.get_regex_pattern(), "",
-                      text)  # Keep only valid chars
-
-        tokens = self.tokenize(text)
-        tokens = [t for t in tokens if t not in self.stop_words and len(t) > 1]
-        return " ".join(tokens)
-
-
-class EnglishProcessor(LanguageProcessor):
-    """English text processor"""
-
-    def _setup_stop_words(self):
-        self.stop_words = set(stopwords.words("english"))
-        custom_stop_words = {
-            "game", "games", "theres", "there", "really", "thing", "things",
-            "play", "playing", "fun", "time", "get", "got", "make", "made",
-            "like", "bit", "fits", "yes", "want", "another", "minutes",
-            "always", "actually", "yet", "wouldve", "would", "im", "please", "hey"
-        }
-        self.stop_words.update(custom_stop_words)
-
-    def tokenize(self, text):
-        return text.split()
-
-    def get_regex_pattern(self):
-        return r"[^a-z\s]"  # Keep only English letters and spaces
-
-
-class ChineseProcessor(LanguageProcessor):
-    """Chinese text processor"""
-
-    def _setup_stop_words(self):
-        chinese_stop_words = {
-            "游戏", "不是", "这个", "好玩", "就是", "但是", "可以", "虽然",
-            "而且", "时候", "那个", "所以", "因为", "那么", "之前", "之后",
-            "的话", "然后", "以及", "不过", "这样", "除了", "同时", "甚至",
-            "这种", "那种", "觉得", "还有", "知道", "所以", "还是", "一下",
-            "一个", "如果", "没有"
-        }
-        self.stop_words.update(chinese_stop_words)
-
-    def tokenize(self, text):
-        return list(jieba.cut(text))
-
-    def get_regex_pattern(self):
-        # Keep Chinese chars, English letters, and spaces
-        return r"[^a-z\u4e00-\u9fff\s]"
-
-
-# Language processor registry
+# Language processor registry, for dynamic module loading
+# The values are fully qualified reference to a class or function as a string
 LANGUAGE_PROCESSORS = {
-    "english": EnglishProcessor,
-    "schinese": ChineseProcessor,
+    "english": "preprocessors.english.EnglishProcessor",
+    "schinese": "preprocessors.schinese.ChineseProcessor",
 }
 
 def get_supported_langs():
@@ -100,11 +20,18 @@ def get_supported_langs():
 
 def get_language_processor(language):
     """Factory function to get appropriate language processor"""
-    if language not in LANGUAGE_PROCESSORS:
+    qualname = LANGUAGE_PROCESSORS.get(language)
+    if not qualname:
         raise ValueError(
             f"Unsupported language '{language}'. Available languages: {get_supported_langs()}")
+    
+    module_name, class_name = qualname.rsplit(".", 1)
+    mod = importlib.import_module(module_name)
+    PreprocClass = getattr(mod, class_name)
+    if not issubclass(PreprocClass, LanguageProcessor):
+        raise TypeError(f"{class_name} is not subclass of LanguageProcessor")
 
-    return LANGUAGE_PROCESSORS[language]()
+    return PreprocClass()
 
 
 def main():
