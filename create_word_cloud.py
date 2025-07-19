@@ -24,13 +24,16 @@ def generate_wordcloud(text: str, output_path: str, language: str):
     registry = get_registry()
     language_name = registry.get_config(language).name
 
+    script_dir = Path(__file__).resolve().parent
+    font_path = script_dir.parent / "assets" / "NotoSansCJK-Regular.ttc"
+
     wc = WordCloud(
         width=1200,
         height=600,
         background_color='white',
         max_words=200,
         collocations=True,
-        font_path="./assets/NotoSansCJK-Regular.ttc"
+        font_path=str(font_path),  # WordCloud expects a string path
     ).generate(text)
 
     # Plot

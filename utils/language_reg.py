@@ -24,8 +24,9 @@ class LanguageConfig:
         self.extra_config = kwargs
 
     @property
-    def local_model_path(self) -> str:
-        return f"./models/{self.model_subfolder}"
+    def local_model_path(self) -> Path:
+        # Make it relative to the project root
+        return (Path(__file__).resolve().parent.parent / "models" / self.model_subfolder).resolve()
 
 
 class LanguageRegistry:
