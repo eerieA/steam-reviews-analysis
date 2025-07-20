@@ -25,7 +25,7 @@ def generate_wordcloud(text: str, output_path: str, language: str):
     language_name = registry.get_config(language).name
 
     script_dir = Path(__file__).resolve().parent
-    font_path = script_dir.parent / "assets" / "NotoSansCJK-Regular.ttc"
+    font_path = script_dir / "assets" / "NotoSansCJK-Regular.ttc"
 
     wc = WordCloud(
         width=1200,
