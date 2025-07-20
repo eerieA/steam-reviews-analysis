@@ -9,7 +9,9 @@ Only support processing reviews for **one game**, because this is mostly for per
 - [Steam reviews analysis](#steam-reviews-analysis)
     - [Usage examples](#usage-examples)
         - [Quick start](#quick-start)
-        - [With customized constants](#with-customized-constants)
+        - [With optional arguments](#with-optional-arguments)
+            - [analyzesentiments.py](#analyzesentimentspy)
+        - [With customized settings](#with-customized-settings)
     - [Dependencies](#dependencies)
         - [List of dependencies](#list-of-dependencies)
         - [Package sizes](#package-sizes)
@@ -49,7 +51,18 @@ After that, do the following 3 steps sequentially to get results.
 
     This will produce a word cloud graph from all the `english` in the JSON file you just saved, and save the graph as `<app_id>_wordcloud_english.png`, which will be under `./output` by default..
 
-### With customized constants
+### With optional arguments
+
+#### analyze_sentiments.py
+
+You can input an optional `sample_size` argument:
+```bash
+python analyze_sentiments.py --filename subfolder/filename.json -l english--appid <app_id> -s <sample_size>
+```
+This will randomly sample <sample_size> (e.g. 10000) number of reviews from all the reviews.  
+This may be useful when a game has too many reviews.For example, Fallout: New Vegas has 200k+ reviews and you don't want to wait for 3 hours to analyze them all.
+
+### With customized settings
 
 There are a few constants used in the scripts. They are stored in `config.json`.
 
@@ -93,7 +106,7 @@ The recommended and default models are
 
 You need to download their files manually and put them under ./models/, with exactly the subfolder names above, for example `./models/schuylerh-bert-multi-go-emo`.
 
-> You can change these subfolder names and tell the script about them through ./config.json, even if you use the default models. See [With customized constants](#with-customized-constants).
+> You can change these subfolder names and tell the script about them through ./config.json, even if you use the default models. See [With customized settings](#with-customized-settings).
 
 But as described above, other models can be used, and if that is the case, please also change the values in `config.json` to match your model file subfolder names.
 

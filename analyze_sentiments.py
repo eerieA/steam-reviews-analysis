@@ -90,12 +90,13 @@ def extract_top_labels_function(top_k_labels: int):
     return extract_top_labels
 
 
-def plot_emotion_distribution(label_counts: pd.Series, output_image: str, top_k_labels: int):
+def plot_emotion_distribution(label_counts: pd.Series, output_image: str, top_k_labels: int, sample_size: int = -1):
     """Create and save emotion distribution plot"""
+    sample_size_str = f" (sample size {sample_size})" if sample_size and sample_size > 0 else ""
     plt.figure(figsize=(12, 6))
     plt.bar(label_counts.index, label_counts.values, color='skyblue')
     plt.xticks(rotation=45, ha="right")
-    plt.title(f"Top-{top_k_labels} Emotion Distribution in Steam Reviews")
+    plt.title(f"Top-{top_k_labels} Emotion Distribution in Steam Reviews{sample_size_str}")
     plt.xlabel("Emotion")
     plt.ylabel("Number of Appearances")
     plt.tight_layout()
@@ -132,6 +133,13 @@ def main():
         required=True,
         help="Steam App ID of the game, for naming the output file"
     )
+    parser.add_argument(
+        "-s",
+        "--sample-size",
+        type=int,
+        default=None,
+        help="Number of reviews to randomly sample from the dataset (default: use all reviews)",
+    )
     args = parser.parse_args()
 
     # Validate inputs
@@ -161,6 +169,11 @@ def main():
     # Load and process data
     print(f"Loading reviews from {args.filename}...")
     dataset = load_and_clean_reviews(args.filename)
+    # Sample a subset of random reviews if requested
+    if args.sample_size is not None and args.sample_size < len(dataset):
+        total_count = len(dataset)
+        dataset = dataset.shuffle().select(range(args.sample_size))
+        print(f"Sampled {args.sample_size} reviews from {total_count} total reviews.")
 
     print(
         f"Setting up sentiment analysis for {registry.get_config(language).name}...")
@@ -188,7 +201,10 @@ def main():
         all_top_labels).value_counts().sort_values(ascending=False)
 
     # Plot
-    plot_emotion_distribution(label_counts, output_image, top_k_labels)
+    if args.sample_size is not None:
+        plot_emotion_distribution(label_counts, output_image, top_k_labels, args.sample_size)
+    else:
+        plot_emotion_distribution(label_counts, output_image, top_k_labels)
 
     print("Elapsed time:", time.time() - start)
 
